@@ -1,15 +1,21 @@
 
 import { Application, Sprite, loader, Container, settings, SCALE_MODES } from 'pixi.js';
 import { Engine, Bodies, Body, World, Runner, Vector } from 'matter-js';
-import { newCarrot } from './carrot.js';
+import { newCarrot, carrotTexture } from './carrot.js';
+import { newTin } from './tins.js';
+import { LOGICAL_WIDTH, LOGICAL_HEIGHT, RENDER_FPS, SIMULATE_PS } from './config';
 
 import image from './test.jpg';
+import sausagePNG from './sausage.png';
 
-const LOGICAL_WIDTH = 800;
-const LOGICAL_HEIGHT = 500;
 
-const RENDER_FPS = 60.0;
-const SIMULATE_PS = 60.0;
+// DEBUG
+// import { Render } from 'matter-js';
+// let r = Render.create({
+//     element: document.body,
+//     engine: engine
+// });
+// Render.run(r);
 
 const resizeHandler = (renderer, displayContainer) => {
     const scaleFactor = Math.min(
@@ -45,35 +51,39 @@ const createImgRect = (x, y, w, h, texture) => {
     sprite.width = w;
     sprite.height = h;
     sprite.anchor.set(0.5, 0.5);
-    sprite.position.set(w, h);
+    sprite.position.set(x, y);
 
     return {
         body,
         sprite
     };
-}
+};
+
+let objects = [];
 
 const addEntity = (container, world, e) => {
     if (e.sprite) container.addChild(e.sprite);
     if (e.mesh) container.addChild(e.mesh);
     World.add(world, e.body);
-}
-
-let objects = [];
+    objects.push(e);
+};
 
 const gameTick = delta => {
     objects.forEach(obj => {
-        if (obj.tick) obj.tick(obj);
-        // obj.sprite.position.x = obj.body.position.x;
-        // obj.sprite.position.y = obj.body.position.y;
-        // obj.sprite.rotation = obj.body.angle;
+        if (obj.tick) obj.tick(obj, delta);
+        if (obj.sprite && obj.body) {
+            obj.sprite.position.x = obj.body.position.x;
+            obj.sprite.position.y = obj.body.position.y;
+            obj.sprite.rotation = obj.body.angle;
+        }
     });
 };
 
 let app = new Application({
     roundPixels: false,
     antialias: true,
-    resolution: window.devicePixelRatio || 1
+    resolution: window.devicePixelRatio || 1,
+    backgroundColor: 0x356498
 });
 
 settings.SCALE_MODE = SCALE_MODES.NEAREST;
@@ -90,31 +100,23 @@ app.stage.addChild(displayContainer);
 
 resizeHandler(app.renderer, displayContainer);
 window.addEventListener(
-    "resize", () => resizeHandler(app.renderer, displayContainer),
+    'resize', () => resizeHandler(app.renderer, displayContainer),
     false
 );
 
 loader
-    .add([image])
+    .add([image, sausagePNG])
     .load(() => {
-        var graph = new PIXI.Graphics();
-        graph.beginFill(0xFF3300);
-        graph.drawCircle(0, 0, 10);
-        graph.endFill();
-
-        let e = createImgRect(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, 100, 100, loader.resources[image].texture);
-        Body.setAngularVelocity(e.body, 0.02);
-        addEntity(displayContainer, engine.world, e);
-        objects.push(e);
-
-        e = createImgRect(0, LOGICAL_HEIGHT - 100, LOGICAL_WIDTH, 100, loader.resources[image].texture)
+        let e = createImgRect(0, LOGICAL_HEIGHT, LOGICAL_WIDTH, 100, loader.resources[image].texture);
         e.body.isStatic = true;
         addEntity(displayContainer, engine.world, e);
-        objects.push(e);
 
-        e = newCarrot(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2, graph.generateTexture());
+        let carrotTex = carrotTexture(app.renderer, loader);
+        e = newCarrot(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 4, carrotTex);
         addEntity(displayContainer, engine.world, e);
-        objects.push(e);
+
+        let tin = newTin(LOGICAL_WIDTH / 2, LOGICAL_HEIGHT - 70);
+        addEntity(displayContainer, engine.world, tin);
 
         Runner.run(runner, engine);
         setInterval(gameTick, 1000 / SIMULATE_PS);
